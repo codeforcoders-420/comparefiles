@@ -1,101 +1,116 @@
 package Ratescompare.monthlyrates;
 
 import javafx.application.Application;
-import javafx.stage.DirectoryChooser;
-import javafx.stage.Stage;
-import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.TextField;
-import javafx.scene.control.Label;
-import javafx.scene.layout.VBox;
-import javafx.scene.layout.HBox;
-import javafx.geometry.Pos;
 import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.layout.GridPane;
+import javafx.stage.FileChooser;
+import javafx.stage.Stage;
+import org.apache.poi.ss.usermodel.*;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class ProcCodeRatesExtractor extends Application {
+public class ProcCodeRatesUI extends Application {
 
-    private File selectedDirectory;
-    private TextField columnInputField;
+    private ComboBox<String> columnComboBox;
+
+    public static void main(String[] args) {
+        launch(args);
+    }
 
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("Select Excel Files Directory and Column");
+        primaryStage.setTitle("Proc Code Rates Comparison");
 
-        // Label for column input
-        Label columnLabel = new Label("Enter Column Name (e.g., A, B, C):");
+        // GridPane layout for form elements
+        GridPane grid = new GridPane();
+        grid.setPadding(new Insets(15));
+        grid.setHgap(10);
+        grid.setVgap(10);
 
-        // Text field to input the column name
-        columnInputField = new TextField();
-        columnInputField.setPromptText("Enter Column Name");
+        // Label for selecting folder
+        Label folderLabel = new Label("Select Folder:");
+        grid.add(folderLabel, 0, 0);
 
-        // Button to open directory chooser
-        Button selectFolderButton = new Button("Select Folder Containing Excel Files");
-        selectFolderButton.setOnAction(event -> {
-            DirectoryChooser directoryChooser = new DirectoryChooser();
-            directoryChooser.setTitle("Select Folder");
-            File directory = directoryChooser.showDialog(primaryStage);
+        // Button to select folder
+        Button folderButton = new Button("Browse...");
+        grid.add(folderButton, 1, 0);
 
-            if (directory != null) {
-                selectedDirectory = directory;
-                System.out.println("Selected Directory: " + selectedDirectory.getAbsolutePath());
-                
-                // Retrieve column name from text field
-                String columnName = columnInputField.getText().trim().toUpperCase();
-                if (!columnName.isEmpty() && isValidColumnName(columnName)) {
-                    // Call the processing method with user input
-                    processExcelFiles(selectedDirectory, columnName);
-                } else {
-                    System.out.println("Invalid Column Name! Please enter a valid column name (A-Z).");
-                }
+        // Label for selecting column
+        Label columnLabel = new Label("Select Column Header:");
+        grid.add(columnLabel, 0, 1);
+
+        // ComboBox for column headers
+        columnComboBox = new ComboBox<>();
+        columnComboBox.setEditable(true); // Allow typing and auto-completion
+        grid.add(columnComboBox, 1, 1);
+
+        // Button to start comparison
+        Button compareButton = new Button("Compare Rates");
+        grid.add(compareButton, 1, 2);
+
+        // Center the button and ComboBox
+        GridPane.setMargin(folderButton, new Insets(10, 0, 10, 0));
+        GridPane.setMargin(compareButton, new Insets(10, 0, 10, 0));
+
+        // FileChooser to select folder
+        folderButton.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select Excel File");
+            File selectedFile = fileChooser.showOpenDialog(primaryStage);
+            if (selectedFile != null) {
+                List<String> headers = getColumnHeaders(selectedFile);
+                columnComboBox.getItems().setAll(headers); // Load headers into ComboBox
             }
         });
 
-        // Set button and text field alignment
-        HBox inputBox = new HBox(10, columnLabel, columnInputField);  // Label and TextField in HBox
-        inputBox.setAlignment(Pos.CENTER);
+        // Handle the comparison button action
+        compareButton.setOnAction(e -> {
+            String selectedColumn = columnComboBox.getValue();
+            if (selectedColumn != null && !selectedColumn.isEmpty()) {
+                // Perform rate comparison using the selected column header
+                System.out.println("Selected Column: " + selectedColumn);
+                // Add your comparison logic here...
+            } else {
+                Alert alert = new Alert(Alert.AlertType.ERROR, "Please select a valid column header.");
+                alert.showAndWait();
+            }
+        });
 
-        HBox buttonBox = new HBox(selectFolderButton);
-        buttonBox.setAlignment(Pos.CENTER);
-
-        // VBox for layout
-        VBox vbox = new VBox(20, inputBox, buttonBox);
-        vbox.setAlignment(Pos.CENTER);
-        vbox.setPadding(new Insets(50, 50, 50, 50)); // Padding around the VBox
-
-        // Scene
-        Scene scene = new Scene(vbox, 500, 300);
+        // Set up the scene and stage
+        Scene scene = new Scene(grid, 400, 200);
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
-    private boolean isValidColumnName(String columnName) {
-        // Check if the entered column name is valid (A-Z)
-        return columnName.matches("[A-Z]");
-    }
+    /**
+     * Reads the column headers from the first row of the Excel file.
+     * @param file the Excel file to read.
+     * @return a List of column headers.
+     */
+    private List<String> getColumnHeaders(File file) {
+        List<String> headers = new ArrayList<>();
+        try (FileInputStream fis = new FileInputStream(file);
+             Workbook workbook = new XSSFWorkbook(fis)) {
 
-    private void processExcelFiles(File folder, String columnName) {
-        // Get list of files in the selected folder
-        File[] files = folder.listFiles((dir, name) -> name.endsWith(".xlsx") || name.endsWith(".xls"));
-        if (files != null && files.length > 0) {
-            // Processing logic here (use your existing logic to process Excel files)
-            System.out.println("Processing files in folder: " + folder.getAbsolutePath() + " for Column: " + columnName);
+            Sheet sheet = workbook.getSheetAt(0); // Assuming the first sheet
+            Row headerRow = sheet.getRow(0); // Assuming first row is the header
 
-            // Define output folder (example: creating an "output" folder inside the selected directory)
-            File outputFolder = new File(folder, "output");
-            if (!outputFolder.exists()) {
-                outputFolder.mkdir();  // Create output folder if it does not exist
+            if (headerRow != null) {
+                for (Cell cell : headerRow) {
+                    if (cell.getCellType() == CellType.STRING) {
+                        headers.add(cell.getStringCellValue().trim());
+                    }
+                }
             }
-            System.out.println("Output files will be saved to: " + outputFolder.getAbsolutePath());
-            
-            // Call your processing function and save results in the output folder, using the columnName for comparison
-        } else {
-            System.out.println("No Excel files found in the selected folder.");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-    }
-
-    public static void main(String[] args) {
-        launch(args);
+        return headers;
     }
 }
