@@ -1,0 +1,81 @@
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+public class ProcCodeRatesExtractor {
+
+    /**
+     * Reads an Excel file and extracts the data from the specified column header.
+     * @param file the Excel file to read.
+     * @param columnHeader the header name of the column to read from (e.g., "Rate", "Price").
+     * @return a Map with keys as "Proc + Mod + Mod2" and values as rates from the specified column.
+     * @throws IOException if an error occurs while reading the Excel file.
+     */
+    public static Map<String, Double> readExcelFile(File file, String columnHeader) throws IOException {
+        Map<String, Double> dataMap = new HashMap<>();
+        
+        try (FileInputStream fis = new FileInputStream(file);
+             Workbook workbook = new XSSFWorkbook(fis)) {
+
+            Sheet sheet = workbook.getSheetAt(0);  // Assuming rates are on the first sheet
+            Row headerRow = sheet.getRow(0);  // Assuming first row is the header
+            
+            // Find the column index for the user-specified column header
+            int columnIdx = findColumnIndex(headerRow, columnHeader);
+            if (columnIdx == -1) {
+                System.out.println("Column '" + columnHeader + "' not found in the Excel sheet.");
+                return dataMap;
+            }
+            
+            // Loop through rows starting from row 1 (assuming row 0 is the header)
+            for (Row row : sheet) {
+                if (row.getRowNum() == 0) continue; // Skip header row
+
+                // Read Proc + Mod + Mod2
+                Cell procCell = row.getCell(0);  // Assuming "Proc" is in Column A (index 0)
+                Cell modCell = row.getCell(1);   // Assuming "Mod" is in Column B (index 1)
+                Cell mod2Cell = row.getCell(2);  // Assuming "Mod2" is in Column C (index 2)
+                
+                if (procCell != null && modCell != null && mod2Cell != null) {
+                    String procCode = procCell.getStringCellValue();
+                    String mod = modCell.getStringCellValue();
+                    String mod2 = mod2Cell.getStringCellValue();
+
+                    String key = procCode + "+" + mod + "+" + mod2; // Key format "Proc + Mod + Mod2"
+
+                    // Read the rate from the specified column
+                    Cell rateCell = row.getCell(columnIdx);
+                    if (rateCell != null && rateCell.getCellType() == CellType.NUMERIC) {
+                        double rate = rateCell.getNumericCellValue();
+                        dataMap.put(key, rate);  // Store the rate in the map with the key
+                    }
+                }
+            }
+        }
+
+        return dataMap;
+    }
+
+    /**
+     * Finds the column index for a given header name in the provided row.
+     * @param headerRow the row containing headers.
+     * @param columnHeader the header name to find.
+     * @return the zero-based index of the column, or -1 if not found.
+     */
+    private static int findColumnIndex(Row headerRow, String columnHeader) {
+        for (Cell cell : headerRow) {
+            if (cell.getCellType() == CellType.STRING) {
+                String cellValue = cell.getStringCellValue().trim();
+                if (columnHeader.equalsIgnoreCase(cellValue)) {
+                    return cell.getColumnIndex();  // Return the index of the matching column
+                }
+            }
+        }
+        return -1;  // Return -1 if the column header is not found
+    }
+}
